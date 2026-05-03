@@ -1,0 +1,55 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+build/
+*.tgz
+
+# coverage
+coverage/
+*.lcov
+
+# logs
+logs/
+*.log
+report.*.json
+
+# environment files
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test.local
+.env.production.local
+
+# caches
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# local Mastra state
+.mastra/
+*.db
+*.db-*
+*.duckdb
+*.duckdb-*
+src/mastra/public/*.db
+src/mastra/public/*.db-*
+src/mastra/public/*.duckdb
+src/mastra/public/*.duckdb-*
+
+# local deployment output
+.netlify/
+.vercel/
+
+# OS and IDE files
+.DS_Store
+.idea/
+
+# Evidence sandbox artifacts
+dashboard-workspace/dashboard-app/node_modules/
+dashboard-workspace/dashboard-app/build/
+dashboard-workspace/dashboard-app/.evidence/
+dashboard-workspace/dashboard-app/.svelte-kit/
