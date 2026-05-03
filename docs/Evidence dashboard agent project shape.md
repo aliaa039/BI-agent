@@ -4,7 +4,7 @@
 
 Build a standalone internal BI dashboard generation project that runs locally on a developer machine or a local worker.
 
-The final shape is not a live BI product with a manual UI. It is a code-driven dashboard generation system where agents inspect data, generate an Evidence project, build the dashboard locally, and return a local preview URL or exportable build.
+The final shape is not a live BI product with a separate manual UI. It runs through Mastra Studio chat, where the user provides a Google Sheets URL or uploads a CSV, sends a message describing the request, and the agents inspect data, generate an Evidence project, build the dashboard locally, and return a local preview URL or exportable build.
 
 ## Core Idea
 
@@ -13,9 +13,10 @@ Treat Evidence as a dashboard and report compiler, not as the main reasoning lay
 The system should use:
 
 ```text
-Google Sheets URL or direct CSV as the primary data input
+Google Sheets URL or CSV uploaded through Mastra Studio as the primary data input
 Evidence for dashboard rendering and static site generation
 Mastra Workspace for local execution, file access, and reusable skills
+Mastra Studio chat as the user-facing interaction surface
 An internal workflow controller for staged execution
 ```
 
@@ -68,11 +69,11 @@ Dashboard generation workflow
 Expanded flow:
 
 ```text
-User request
+User request in Mastra Studio chat
     -> Profile stage: inspect Google Sheet or CSV and define metrics
     -> Build stage: use Mastra Workspace to generate Evidence project files
     -> Validation stage: use Mastra Workspace to run build, catch SQL or component errors, patch and retry
-    -> Return local preview URL, static build, or project export
+    -> Return local preview URL, static build, or project export back in chat
 ```
 
 ## Main Internal Tool-Agent
@@ -84,6 +85,8 @@ evidence_dashboard_agent
 ```
 
 Its responsibility is to turn structured data inputs and dashboard goals into a working Evidence project and a locally previewable artifact.
+
+If the user does not provide a clear dashboard goal, the agent should make a best-effort BI judgment based on the dataset and generate a sensible default dashboard structure.
 
 ### Recommended actions
 
@@ -130,7 +133,7 @@ Recommended workspace role in this project:
 Responsibilities:
 
 ```text
-- read a shared Google Sheets URL or direct CSV file
+- read a shared Google Sheets URL or a CSV uploaded through Mastra Studio
 - inspect schema and sample rows
 - identify dimensions and metrics
 - write or validate SQL
@@ -138,6 +141,12 @@ Responsibilities:
 ```
 
 This stage should work against real data first so the build stage does not hallucinate fields or charts.
+
+For CSV input, the expected entry path is a file upload initiated by the user in Mastra Studio. The workflow should treat the uploaded file as the source artifact for profiling and dashboard generation.
+
+The uploaded CSV should be resolved to a workspace-accessible file path inside the local Mastra Workspace runtime. From there, the workflow may either read it in place or copy it into the generated Evidence project structure, depending on how the source configuration is implemented.
+
+If the user goal is missing, vague, or underspecified, this stage should infer a reasonable BI objective from the data profile, such as trends, top categories, geographic breakdowns, KPI summaries, and raw detail tables.
 
 ### 2. Build Stage
 
@@ -209,6 +218,8 @@ Example output:
 }
 ```
 
+If no explicit goal is provided, the planning stage should still produce a dashboard plan using best-effort BI defaults derived from the dataset shape.
+
 ### Phase 2. Plan
 
 The system proposes the dashboard structure before generating files.
@@ -267,6 +278,18 @@ Artifact export support
 Mastra Workspace with LocalFilesystem and LocalSandbox
 ```
 
+For CSV-driven runs, the runtime should also support receiving a file uploaded through Mastra Studio and making that file available to the workflow inside the local workspace.
+
+The expected contract is:
+
+```text
+CSV uploaded in Mastra Studio
+    -> resolved to a file path inside the local workspace runtime
+    -> profiled by the workflow from that workspace-accessible path
+    -> either copied into the Evidence project or referenced from there
+    -> used for source generation, build, preview, and validation
+```
+
 Recommended Mastra Workspace configuration:
 
 ```ts
@@ -302,7 +325,7 @@ Evidence
 This means:
 
 ```text
-Google Sheets URL or CSV file
+Google Sheets URL or CSV uploaded through Mastra Studio
     -> input profiling and metric planning
     -> Mastra Workspace file and command execution
   -> Evidence project generation
@@ -319,9 +342,9 @@ dashboard-app/
     index.md
   sources/
         sales_data/
-      connection.yaml
+            connection.yaml
             source_reference.json
-      orders.sql
+            orders.sql
   evidence.config.yaml
   package.json
 
@@ -341,7 +364,8 @@ Typical local flow:
 ```bash
 mkdir dashboard-app
 cd dashboard-app
-npm create evidence@latest .
+# Use the current official Evidence package bootstrap command from the package/docs.
+# The exact invocation may vary by release.
 npm install
 npm run sources
 npm run build
@@ -355,7 +379,8 @@ cd dashboard-workspace
 mkdir skills
 mkdir dashboard-app
 cd dashboard-app
-npm create evidence@latest .
+# Use the current official Evidence package bootstrap command from the package/docs.
+# The exact invocation may vary by release.
 npm install
 npm run sources
 npm run build
@@ -375,17 +400,31 @@ npm run build
 
 ## Input and Output Contract
 
+The end product should be operated entirely through Mastra Studio chat.
+
+Expected user interaction:
+
+```text
+User opens Mastra Studio
+    -> uploads CSV or pastes Google Sheets URL in chat
+    -> sends a message describing the dashboard request
+    -> agent workflow starts automatically
+    -> system returns a preview link or build result in chat
+```
+
 ### Example input
 
 ```json
 {
     "task": "Create an interactive sales dashboard",
     "google_sheet_url": "https://docs.google.com/spreadsheets/d/your-sheet-id/edit",
-    "csv_path": "C:/data/sales.csv",
+    "uploaded_csv_path": "workspace/uploads/sales.csv",
     "goal": "Show revenue, margin, top products, trends, filters",
     "output": "evidence_project"
 }
 ```
+
+The `goal` field is recommended but not mandatory. If it is omitted or too vague, the agent should infer a useful dashboard objective from the profiled data.
 
 ### Example output
 
@@ -395,6 +434,7 @@ npm run build
     "project_path": "C:/work/evidence-app",
     "preview_url": "http://localhost:3000",
     "build_path": "C:/work/evidence-app/build",
+    "chat_response": "Your dashboard is ready. Open the preview URL to review it.",
     "files_created": [
         "pages/index.md",
         "sources/sales_data/connection.yaml",
@@ -554,6 +594,12 @@ Example tool schema:
 
 At least one of `google_sheet_url` or `csv_path` should be provided.
 
+If the user uploads a CSV through Mastra Studio, the workflow should resolve that uploaded file to a workspace-accessible path and use it as the CSV input.
+
+That workspace-accessible path is the handoff point between Mastra Studio input handling and the dashboard-generation workflow. The implementation may keep the uploaded file in a dedicated workspace uploads directory or copy it into the Evidence project, but the workflow must be able to read it from the local workspace filesystem before profiling and build steps begin.
+
+If no explicit dashboard goal is provided, the workflow should continue with a best-effort BI plan rather than failing for missing intent.
+
 ## Recommended Data Pattern
 
 Do not let Evidence infer everything directly from a raw shared sheet or raw CSV file.
@@ -561,7 +607,7 @@ Do not let Evidence infer everything directly from a raw shared sheet or raw CSV
 Preferred pattern:
 
 ```text
-Google Sheets URL or CSV file
+Google Sheets URL or CSV uploaded through Mastra Studio
     -> input profiling
     -> normalized queries or generated SQL
   -> Evidence dashboard
@@ -580,16 +626,91 @@ Useful inspection outputs:
 - candidate metrics and dimensions
 ```
 
+Useful default dashboard sections when no goal is provided:
+
+```text
+- KPI summary cards
+- time trend if a date column exists
+- top categories for the strongest dimensions
+- geographic breakdown if location fields exist
+- recent records or raw detail table
+```
+
 ## Minimal Deliverable
 
 The minimum successful project outcome is:
 
 ```text
 - one internal evidence_dashboard_agent
-- one working Google-Sheet-to-dashboard or CSV-to-dashboard flow
+- one working Google-Sheet-to-dashboard or uploaded-CSV-to-dashboard flow
 - one Mastra Workspace layer for local files, commands, and reusable skills
 - one locally previewable Evidence dashboard artifact
 - one validator loop that can catch and repair common build failures
+```
+
+## Example User Stories
+
+### User Story 1. CSV to Dashboard
+
+As an internal analyst,
+I want to upload a CSV file in Mastra Studio and provide a dashboard goal,
+so that the system can generate a working Evidence dashboard project and return a local build result.
+
+Example input:
+
+```json
+{
+    "task": "Create a customer exploration dashboard",
+    "uploaded_csv_path": "workspace/uploads/customers.csv",
+    "goal": "Show customer counts, signup trend, top countries, and a detailed table",
+    "output": "static_build"
+}
+```
+
+Acceptance criteria:
+
+```text
+- The user uploads the CSV through Mastra Studio.
+- The system resolves the uploaded file into the local workspace.
+- The uploaded file is available on the workspace filesystem before profiling starts.
+- The system reads the CSV and profiles its columns, types, and sample rows.
+- The system either copies the CSV into the Evidence project or references it from a workspace-accessible path.
+- The system proposes a dashboard plan before writing files.
+- The system writes or updates an Evidence project on local disk.
+- The system creates at least one dashboard page such as pages/index.md.
+- The system runs npm run sources and npm run build.
+- If the build succeeds, the system returns the project path and build path.
+- If the build fails because of a fixable query or page issue, the system patches the project and retries.
+```
+
+### User Story 2. Google Sheet to Preview
+
+As an internal operator,
+I want to provide a shared Google Sheets URL and a reporting goal in Mastra Studio chat,
+so that the system can generate a locally previewable dashboard and return the preview link directly in chat without manual build steps.
+
+Example input:
+
+```json
+{
+    "task": "Create a sales overview dashboard",
+    "google_sheet_url": "https://docs.google.com/spreadsheets/d/your-sheet-id/edit",
+    "goal": "Show revenue trend, top regions, top products, and filters",
+    "output": "preview_url"
+}
+```
+
+Acceptance criteria:
+
+```text
+- The user interacts only through Mastra Studio chat.
+- The system reads the sheet structure or normalized extracted data before planning the dashboard.
+- The system identifies likely metrics and dimensions from the sheet data.
+- The system generates the Evidence project files in the local workspace.
+- The system runs npm run sources.
+- The system starts a local preview server when requested.
+- If preview startup succeeds, the system returns a local preview URL in chat.
+- If source or page errors occur, the system inspects the generated files, patches them, and retries.
 ```
 
 ## Final Recommendation
@@ -598,5 +719,5 @@ The final project should be framed as:
 
 ```text
 Build a standalone internal Evidence-based dashboard generation project.
-It should accept BI tasks driven by a shared Google Sheets URL or a direct CSV file, reason over that data or MCP-backed sources, use Mastra Workspace for local file access, command execution, and reusable skills, generate an Evidence project on local disk, validate the build, and return a locally previewable dashboard artifact.
+It should run entirely through Mastra Studio chat. The user should provide BI tasks by pasting a shared Google Sheets URL or uploading a CSV file and sending a request message. The system should reason over that data or MCP-backed sources, use Mastra Workspace for local file access, command execution, and reusable skills, generate an Evidence project on local disk, validate the build, and return a locally previewable dashboard artifact or preview link back to the user in chat.
 ```
