@@ -1,55 +1,39 @@
 # dependencies
 node_modules/
 
-# build output
-out/
+# build output & caches
 dist/
 build/
+out/
+.cache/
+*.tsbuildinfo
 *.tgz
 
-# coverage
-coverage/
-*.lcov
-
-# logs
-logs/
+# logs & coverage
 *.log
-report.*.json
+logs/
+coverage/
 
-# environment files
+# env files (keep .env.example)
 .env
-.env.local
-.env.development
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+!.env.example
 
-# caches
-.cache/
-.eslintcache
-*.tsbuildinfo
-
-# local Mastra state
+# Mastra runtime state (db, duckdb, dev public dir, build output)
 .mastra/
 *.db
 *.db-*
 *.duckdb
 *.duckdb-*
-src/mastra/public/*.db
-src/mastra/public/*.db-*
-src/mastra/public/*.duckdb
-src/mastra/public/*.duckdb-*
+src/mastra/public/
 
-# local deployment output
-.netlify/
-.vercel/
+# generated dashboard workspace artifacts
+dashboard-workspace/**/node_modules/
+dashboard-workspace/**/build/
+dashboard-workspace/**/.evidence/
+dashboard-workspace/**/.svelte-kit/
 
-# OS and IDE files
+# OS / editor
 .DS_Store
 .idea/
-
-# Evidence sandbox artifacts
-dashboard-workspace/dashboard-app/node_modules/
-dashboard-workspace/dashboard-app/build/
-dashboard-workspace/dashboard-app/.evidence/
-dashboard-workspace/dashboard-app/.svelte-kit/
+.vscode/
