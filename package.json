@@ -20,6 +20,7 @@
     "start": "mastra start"
   },
   "dependencies": {
+    "@ai-sdk/azure": "^3.0.62",
     "@ai-sdk/openai": "^2.0.103",
     "@mastra/core": "^1.31.0",
     "@mastra/duckdb": "^1.2.0",
