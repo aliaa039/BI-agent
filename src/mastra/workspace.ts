@@ -11,7 +11,7 @@ import {
 // - source (bun/tsx):     src/mastra/workspace.ts -> ../../dashboard-workspace = <project>/dashboard-workspace
 // - mastra dev / start:   .mastra/output/index.mjs -> ../../dashboard-workspace = <project>/dashboard-workspace
 const here = dirname(fileURLToPath(import.meta.url));
-const basePath =
+export const basePath =
     process.env.WORKSPACE_PATH ?? resolve(here, "../../dashboard-workspace");
 
 export const dashboardWorkspace = new Workspace({

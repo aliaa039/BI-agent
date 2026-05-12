@@ -1,8 +1,10 @@
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { defaultAzureModel } from '../models/openai';
+import { AttachmentToFilePathProcessor } from '../processors/attachment-to-file-path';
 import { startDevServerTool } from '../tools/start-dev-server';
 import { httpProbeTool } from '../tools/http-probe';
+import { basePath } from '../workspace';
 
 export const dashboardAgent = new Agent({
   id: 'dashboard-agent',
@@ -13,6 +15,19 @@ export const dashboardAgent = new Agent({
 
 You have access to a local workspace with filesystem and shell tools.
 Use them to create, edit, and build Evidence projects on disk.
+
+## Workspace Details
+
+The workspace is at \`dashboard-workspace\` (relative to the project root).
+
+Available subdirectories:
+- \`uploads/\` - where uploaded files go
+- \`dashboard-app/\` - your Evidence BI dashboard project
+- \`sources/\` - data sources (e.g., \`sources/customers/customers-100.csv\`)
+
+All file operations (read_file, write_file, list_files, execute_command) operate relative to this workspace.
+
+When a file is uploaded via Studio, the attachment processor saves it to \`uploads/\` and replaces the raw attachment content with a text note containing the file path. Use \`read_file\` to read the file from that path.
 
 For now, when asked, briefly describe what you would do and confirm the
 workspace tools you have available (read_file, write_file, list_files,
@@ -72,6 +87,7 @@ netstat command. If something is already LISTENING, kill it first
     start_dev_server: startDevServerTool,
     http_probe: httpProbeTool,
   },
+  inputProcessors: [new AttachmentToFilePathProcessor(basePath)],
   memory: new Memory({
     options: {
       lastMessages: 20,
