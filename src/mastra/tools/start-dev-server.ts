@@ -19,6 +19,8 @@ import { z } from "zod";
  *   RUNNING by design — the caller owns cleanup via the returned PID.
  */
 
+
+//A list of regex patterns to detect when a dev server has started
 const READY_PATTERNS_DEFAULT = [
     /Accepting connections at\s+http/i, // Evidence preview (sirv)
     /Local:\s+http/i, // Vite / Evidence dev
@@ -112,7 +114,7 @@ export const startDevServerTool = createTool({
         }
 
         const url = `http://${host}:${port}${path.startsWith("/") ? path : `/${path}`}`;
-
+//check for any pattern that tells that the system is running
         const patterns = readyPattern
             ? [new RegExp(readyPattern, "i")]
             : READY_PATTERNS_DEFAULT;
@@ -126,11 +128,12 @@ export const startDevServerTool = createTool({
         const tail = (s: string, n = 1500) =>
             s.length <= n ? s : s.slice(-n);
 
+        //check if the stdout or stderr contains any of the ready patterns
         const matchesStdout = () => {
             const buf = handle.stdout + "\n" + handle.stderr;
             return patterns.some((re) => re.test(buf));
         };
-
+//fetch("http://localhost:3000")
         const probeHttp = async (perRequestMs: number): Promise<number | null> => {
             try {
                 const res = await fetch(url, {
@@ -158,6 +161,8 @@ export const startDevServerTool = createTool({
         let readinessSignal: "http" | "stdout" | "none" = "none";
         let httpStatus: number | null = null;
 
+
+        //time of waiting
         while (Date.now() - started < timeoutMs) {
             // Process died before becoming ready.
             if (handle.exitCode !== undefined) {

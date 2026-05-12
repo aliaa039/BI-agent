@@ -13,7 +13,6 @@ export const httpProbeTool = createTool({
         "Probe an HTTP(S) URL and return its status code and timing. Use this to verify a dev/preview server is actually serving (e.g. http://localhost:3000/) instead of shelling out to curl. Fails fast on connection refused.",
     inputSchema: z.object({
         url: z
-            .string()
             .url()
             .describe("Full URL to probe, e.g. http://localhost:3000/"),
         method: z

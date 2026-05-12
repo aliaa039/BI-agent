@@ -1,9 +1,11 @@
 import { createAzure } from '@ai-sdk/azure';
 
+const azureApiVersion = process.env.AZURE_API_VERSION ?? 'preview';
+
 export const azureProvider = createAzure({
   resourceName: process.env.AZURE_RESOURCE_NAME,
   apiKey: process.env.AZURE_API_KEY,
-  apiVersion: process.env.AZURE_API_VERSION ?? 'preview',
+  apiVersion: azureApiVersion,
 });
 
 export const createAzureModel = (
