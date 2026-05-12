@@ -13,7 +13,9 @@ type MessagePart = MastraDBMessage['content']['parts'][number];
 type FilePart = MessagePart & {
   type: 'file';
   mediaType?: string;
+  mimeType?: string;
   url?: string;
+  data?: string;
   filename?: string;
 };
 
@@ -105,7 +107,18 @@ export class AttachmentToFilePathProcessor implements Processor {
   }
 
   private isInlineFilePart(part: MessagePart): part is FilePart {
-    return part.type === 'file' && typeof part.url === 'string' && part.url.startsWith(DATA_URL_PREFIX);
+    if (part.type !== 'file') {
+      return false;
+    }
+
+    const candidate = part as FilePart & Record<string, unknown>;
+    const url = candidate['url'];
+    if (typeof url === 'string' && url.startsWith(DATA_URL_PREFIX)) {
+      return true;
+    }
+
+    const data = candidate['data'];
+    return typeof data === 'string' && typeof this.getFileMediaType(candidate as FilePart) === 'string';
   }
 
   private isAttachmentTextPart(part: MessagePart): part is TextPart {
@@ -116,7 +129,7 @@ export class AttachmentToFilePathProcessor implements Processor {
     part: FilePart,
     savedFiles: Map<string, string>
   ): Promise<string | null> {
-    const dataUrl = part.url;
+    const dataUrl = this.getFileDataUrl(part);
     if (!dataUrl) {
       return null;
     }
@@ -152,7 +165,11 @@ export class AttachmentToFilePathProcessor implements Processor {
       return null;
     }
 
-    const [, , rawFileName] = match;
+    const rawFileName = match[2];
+    if (!rawFileName) {
+      return null;
+    }
+
     const fileBody = part.text.slice(match[0].length);
     const cacheKey = `text:${rawFileName}:${fileBody}`;
     const existingPath = savedFiles.get(cacheKey);
@@ -178,11 +195,33 @@ export class AttachmentToFilePathProcessor implements Processor {
       return null;
     }
 
-    const [, mediaType = 'application/octet-stream', base64Payload] = match;
+    const mediaType = match[1] ?? 'application/octet-stream';
+    const base64Payload = match[2];
+    if (!base64Payload) {
+      return null;
+    }
+
     return {
       mediaType,
       buffer: Buffer.from(base64Payload, 'base64'),
     };
+  }
+
+  private getFileDataUrl(part: FilePart): string | null {
+    if (typeof part.url === 'string' && part.url.startsWith(DATA_URL_PREFIX)) {
+      return part.url;
+    }
+
+    if (typeof part.data !== 'string') {
+      return null;
+    }
+
+    const mediaType = this.getFileMediaType(part) ?? 'application/octet-stream';
+    return `data:${mediaType};base64,${part.data}`;
+  }
+
+  private getFileMediaType(part: FilePart): string | undefined {
+    return part.mediaType ?? part.mimeType;
   }
 
   private buildFileName(originalName: string | undefined, mediaType: string): string {

@@ -87,6 +87,9 @@ netstat command. If something is already LISTENING, kill it first
     start_dev_server: startDevServerTool,
     http_probe: httpProbeTool,
   },
+    defaultOptions: {
+    maxSteps: 15,
+  },
   inputProcessors: [new AttachmentToFilePathProcessor(basePath)],
   memory: new Memory({
     options: {

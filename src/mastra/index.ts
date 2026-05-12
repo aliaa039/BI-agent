@@ -2,7 +2,7 @@ import { Mastra } from '@mastra/core/mastra';
 import { LibSQLStore } from '@mastra/libsql';
 import { dashboardWorkspace } from './workspace';
 import { dashboardAgent } from './agents/dashboard-agent';
-// import { plannerAgent } from './agents/planner-agent';
+import { plannerAgent } from './agents/planner-agent';
 
 export const mastra = new Mastra({
   storage: new LibSQLStore({
@@ -10,5 +10,5 @@ export const mastra = new Mastra({
     url: 'file:./mastra.db',
   }),
   workspace: dashboardWorkspace,
-  agents: { dashboardAgent /*, plannerAgent */ },
+  agents: { dashboardAgent, plannerAgent },
 });
