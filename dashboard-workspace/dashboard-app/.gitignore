@@ -8,3 +8,6 @@ static/data
 .vscode/settings.json
 .env
 .evidence/meta
+sources/
+pages/
+.vscode/

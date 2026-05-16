@@ -28,6 +28,10 @@ const UPLOADS_DIR = 'uploads';
 const DATA_URL_PREFIX = 'data:';
 const ATTACHMENT_TEXT_PREFIX = /^<attachment\s+name=(['"]?)([^>'"\r\n]+)\1>\s*/i;
 
+type SavedAttachmentInfo = {
+  uploadPath: string;
+};
+
 export class AttachmentToFilePathProcessor implements Processor {
   id = 'attachment-to-file-path';
 
@@ -51,28 +55,28 @@ export class AttachmentToFilePathProcessor implements Processor {
       messages.map(async (message) => {
         const parts = message.content.parts ?? [];
         const rewrittenParts: MessagePart[] = [];
-        const savedPathsForMessage: string[] = [];
+        const savedAttachmentsForMessage: SavedAttachmentInfo[] = [];
 
         for (const part of parts) {
           if (this.isInlineFilePart(part)) {
-            const savedPath = await this.persistFilePart(part, savedFiles);
-            if (!savedPath) {
+            const savedAttachment = await this.persistFilePart(part, savedFiles);
+            if (!savedAttachment) {
               rewrittenParts.push(part);
               continue;
             }
 
-            savedPathsForMessage.push(savedPath);
+            savedAttachmentsForMessage.push(savedAttachment);
             continue;
           }
 
           if (this.isAttachmentTextPart(part)) {
-            const savedPath = await this.persistAttachmentTextPart(part, savedFiles);
-            if (!savedPath) {
+            const savedAttachment = await this.persistAttachmentTextPart(part, savedFiles);
+            if (!savedAttachment) {
               rewrittenParts.push(part);
               continue;
             }
 
-            savedPathsForMessage.push(savedPath);
+            savedAttachmentsForMessage.push(savedAttachment);
             continue;
           }
 
@@ -82,13 +86,13 @@ export class AttachmentToFilePathProcessor implements Processor {
           }
         }
 
-        if (!savedPathsForMessage.length) {
+        if (!savedAttachmentsForMessage.length) {
           return message;
         }
 
         rewrittenParts.push({
           type: 'text',
-          text: this.buildPathNote(savedPathsForMessage),
+          text: this.buildPathNote(savedAttachmentsForMessage),
         } as MessagePart);
 
         return {
@@ -128,15 +132,15 @@ export class AttachmentToFilePathProcessor implements Processor {
   private async persistFilePart(
     part: FilePart,
     savedFiles: Map<string, string>
-  ): Promise<string | null> {
+  ): Promise<SavedAttachmentInfo | null> {
     const dataUrl = this.getFileDataUrl(part);
     if (!dataUrl) {
       return null;
     }
 
-    const existingPath = savedFiles.get(dataUrl);
-    if (existingPath) {
-      return existingPath;
+    const existingAttachment = savedFiles.get(dataUrl);
+    if (existingAttachment) {
+      return this.deserializeSavedAttachment(existingAttachment);
     }
 
     const parsed = this.parseDataUrl(dataUrl);
@@ -152,14 +156,15 @@ export class AttachmentToFilePathProcessor implements Processor {
     await writeFile(absolutePath, parsed.buffer);
     console.log(`[AttachmentToFilePathProcessor] saved ${relativePath}`);
 
-    savedFiles.set(dataUrl, relativePath);
-    return relativePath;
+    const savedAttachment = { uploadPath: relativePath };
+    savedFiles.set(dataUrl, this.serializeSavedAttachment(savedAttachment));
+    return savedAttachment;
   }
 
   private async persistAttachmentTextPart(
     part: TextPart,
     savedFiles: Map<string, string>
-  ): Promise<string | null> {
+  ): Promise<SavedAttachmentInfo | null> {
     const match = ATTACHMENT_TEXT_PREFIX.exec(part.text);
     if (!match) {
       return null;
@@ -172,9 +177,9 @@ export class AttachmentToFilePathProcessor implements Processor {
 
     const fileBody = part.text.slice(match[0].length);
     const cacheKey = `text:${rawFileName}:${fileBody}`;
-    const existingPath = savedFiles.get(cacheKey);
-    if (existingPath) {
-      return existingPath;
+    const existingAttachment = savedFiles.get(cacheKey);
+    if (existingAttachment) {
+      return this.deserializeSavedAttachment(existingAttachment);
     }
 
     const fileName = this.buildFileName(rawFileName, this.mediaTypeFromFileName(rawFileName));
@@ -185,8 +190,9 @@ export class AttachmentToFilePathProcessor implements Processor {
     await writeFile(absolutePath, fileBody, 'utf8');
     console.log(`[AttachmentToFilePathProcessor] saved ${relativePath}`);
 
-    savedFiles.set(cacheKey, relativePath);
-    return relativePath;
+    const savedAttachment = { uploadPath: relativePath };
+    savedFiles.set(cacheKey, this.serializeSavedAttachment(savedAttachment));
+    return savedAttachment;
   }
 
   private parseDataUrl(dataUrl: string): { buffer: Buffer; mediaType: string } | null {
@@ -270,9 +276,34 @@ export class AttachmentToFilePathProcessor implements Processor {
     }
   }
 
-  private buildPathNote(savedPaths: string[]): string {
-    const heading = savedPaths.length === 1 ? 'File saved to workspace:' : 'Files saved to workspace:';
-    return `${heading}\n${savedPaths.join('\n')}\nUse the workspace read_file tool to inspect them.`;
+  private buildPathNote(savedAttachments: SavedAttachmentInfo[]): string {
+    const sections = savedAttachments.map((savedAttachment) => {
+      return [
+        'File saved to workspace:',
+        savedAttachment.uploadPath,
+        '',
+        'Use the workspace read_file tool to inspect it.',
+      ].join('\n');
+    });
+
+    return `${sections.join('\n\n')}\nUse the workspace read_file tool to inspect them.`;
+  }
+
+  private serializeSavedAttachment(savedAttachment: SavedAttachmentInfo): string {
+    return JSON.stringify(savedAttachment);
+  }
+
+  private deserializeSavedAttachment(value: string): SavedAttachmentInfo {
+    try {
+      const parsed = JSON.parse(value) as SavedAttachmentInfo;
+      if (typeof parsed.uploadPath === 'string') {
+        return parsed;
+      }
+    } catch {
+      // Fall back to the legacy string-only format.
+    }
+
+    return { uploadPath: value };
   }
 
   private getSavedFiles(state: Record<string, unknown>): Map<string, string> {

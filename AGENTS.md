@@ -59,3 +59,16 @@ Top-level files define how your Mastra project is configured, built, and connect
 
 - [Mastra Documentation](https://mastra.ai/llms.txt)
 - [Mastra .well-known skills discovery](https://mastra.ai/.well-known/skills/index.json)
+
+---
+
+## Dashboard Development
+
+When working on Evidence dashboards (in `dashboard-workspace/`), you **MUST** follow the guidelines in `DASHBOARD_AGENTS.md`.
+
+**Before any dashboard work:**
+1. Read `DASHBOARD_AGENTS.md` first
+2. Follow the inspection protocol to verify actual schema
+3. Apply error-driven learning if any issues occur
+
+The agent is responsible for understanding and applying these rules to avoid common pitfalls.

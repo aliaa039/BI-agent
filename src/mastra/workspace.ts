@@ -19,6 +19,8 @@ export const dashboardWorkspace = new Workspace({
     name: "Dashboard Workspace",
     filesystem: new LocalFilesystem({ basePath }),
     sandbox: new LocalSandbox({ workingDirectory: basePath }),
+    skills: ["skills"],
+    bm25: true,
     tools: {
         // Keep background processes (e.g. `npm run dev`, `npm run preview`)
         // alive across agent turns. Without this, the default abort signal
